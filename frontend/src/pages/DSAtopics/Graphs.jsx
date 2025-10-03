@@ -454,7 +454,7 @@ const DSAGraphs = () => {
             <Typography variant="h6" fontWeight={600}>
               Interactive Graph Builder
             </Typography>
-            <Box display={"flex"} gap={2} mt={3}>
+            <Box display={"flex"} gap={2} mt={0.5}>
               <Button
                 onClick={handleAddNodeClick}
                 sx={{
@@ -556,7 +556,7 @@ const DSAGraphs = () => {
               width={"100%"}
               border={"2px solid #dedfe0"}
               borderRadius={2}
-              mt={3}
+              mt={2}
               position="relative"
               onClick={handleCanvasClick}
               sx={{ cursor: mode === "node" ? "crosshair" : "default" }}

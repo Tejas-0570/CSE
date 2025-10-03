@@ -1,139 +1,164 @@
-import { Box, Typography, Input, Button, Select, MenuItem } from "@mui/material";
+// DSASorting.jsx
+import { Box, Typography, Input, Button, Select, MenuItem,Slider } from "@mui/material";
 import { FaStop } from "react-icons/fa";
+import { FaPause, FaPlay as FaResume } from "react-icons/fa";
 import { FaPlay } from "react-icons/fa6";
 import { RiLoopLeftFill } from "react-icons/ri";
 import React, { useState, useRef } from "react";
-import { Accordion, AccordionSummary, AccordionDetails } from '@mui/material';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { darcula } from 'react-syntax-highlighter/dist/esm/styles/prism';
-import PracticeProblem from '../../components/PracticeProblem'
-
+import { Accordion, AccordionSummary, AccordionDetails } from "@mui/material";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import { Prism as SyntaxHighlighter } from "react-syntax-highlighter";
+import { darcula } from "react-syntax-highlighter/dist/esm/styles/prism";
+import PracticeProblem from "../../components/PracticeProblem";
 
 const sleep = (ms) => new Promise((res) => setTimeout(res, ms));
 
-/** A step the visualizer can play */
-//
-// array: current array snapshot
-// compare?: [i, j]                 -> highlight comparison (amber)
-// swap?: [i, j]                    -> highlight swap (red)
-// writeIndex?: number              -> highlight single write (green) - mainly for Merge Sort
-// pivot?: number                   -> highlight pivot (purple)       - Quick Sort
-//
-/** type Step = { array:number[], compare?:[number,number], swap?:[number,number], writeIndex?:number, pivot?:number } */
+/**
+ * Step shape:
+ * { array: number[], compare?: [i,j], swap?: [i,j], writeIndex?: number, pivot?: number, text?: string }
+ */
 
-// ------------- SORT STEP BUILDERS ------------- //
+// ---------------- SORT STEP BUILDERS (with narration text) ---------------- //
 const bubbleSortSteps = (src) => {
   const arr = [...src];
   const steps = [];
-  let comparisons = 0;
-  let swaps = 0;
 
   for (let i = 0; i < arr.length - 1; i++) {
     for (let j = 0; j < arr.length - i - 1; j++) {
-      comparisons++;
-      steps.push({ array: [...arr], compare: [j, j + 1] });
-      if (arr[j] > arr[j + 1]) {
+      const a = arr[j],
+        b = arr[j + 1];
+
+      // Step: Compare
+      steps.push({
+        array: [...arr],
+        compare: [j, j + 1],
+        text: `Compare ${a} and ${b}. Since ${a} ${a <= b ? "is less than or equal to" : "is greater than"} ${b}, ${a <= b ? "no swap is needed." : "swap them so that the smaller element comes first."
+          }`,
+      });
+
+      // Step: Swap (if needed)
+      if (a > b) {
         [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
-        swaps++;
-        steps.push({ array: [...arr], swap: [j, j + 1] });
+        steps.push({
+          array: [...arr],
+          swap: [j, j + 1],
+          text: `Swapped ${a} and ${b}. Array becomes [${arr.join(", ")}].`,
+        });
       }
     }
   }
-  return { steps, comparisons, swaps };
+
+  return { steps };
 };
+
 
 const selectionSortSteps = (src) => {
   const arr = [...src];
   const steps = [];
-  let comparisons = 0;
-  let swaps = 0;
 
   for (let i = 0; i < arr.length - 1; i++) {
     let minIdx = i;
     for (let j = i + 1; j < arr.length; j++) {
-      comparisons++;
-      steps.push({ array: [...arr], compare: [minIdx, j] });
-      if (arr[j] < arr[minIdx]) {
-        minIdx = j;
-      }
+      steps.push({
+        array: [...arr],
+        compare: [minIdx, j],
+        text: `Compare current minimum ${arr[minIdx]} with ${arr[j]}. ${arr[j] < arr[minIdx]
+            ? `${arr[j]} is smaller, update minimum index to ${j}.`
+            : `${arr[minIdx]} remains the minimum.`
+          }`,
+      });
+      if (arr[j] < arr[minIdx]) minIdx = j;
     }
     if (minIdx !== i) {
+      const a = arr[i], b = arr[minIdx];
       [arr[i], arr[minIdx]] = [arr[minIdx], arr[i]];
-      swaps++;
-      steps.push({ array: [...arr], swap: [i, minIdx] });
+      steps.push({
+        array: [...arr],
+        swap: [i, minIdx],
+        text: `Swap ${a} with ${b} to place the smallest element at position ${i}. Array becomes [${arr.join(", ")}].`,
+      });
+    } else {
+      steps.push({
+        array: [...arr],
+        text: `Minimum element is already in the correct place at index ${i}.`,
+      });
     }
   }
-  return { steps, comparisons, swaps };
+  return { steps };
 };
+
 
 const insertionSortSteps = (src) => {
   const arr = [...src];
   const steps = [];
-  let comparisons = 0;
-  let swaps = 0;
 
   for (let i = 1; i < arr.length; i++) {
     let j = i - 1;
     const key = arr[i];
-    // We’ll visualize insertion as adjacent swaps (shifts)
-    while (j >= 0) {
-      comparisons++;
-      steps.push({ array: [...arr], compare: [j, j + 1] });
-      if (arr[j] > arr[j + 1]) {
-        [arr[j], arr[j + 1]] = [arr[j + 1], arr[j]];
-        swaps++;
-        steps.push({ array: [...arr], swap: [j, j + 1] });
-      } else {
-        break;
-      }
+    steps.push({
+      array: [...arr],
+      text: `Take element ${key} at index ${i} and insert it into the sorted part of the array.`,
+    });
+
+    while (j >= 0 && arr[j] > key) {
+      steps.push({
+        array: [...arr],
+        compare: [j, j + 1],
+        text: `Compare ${arr[j]} with ${key}. Since ${arr[j]} is greater, shift ${arr[j]} one position to the right.`,
+      });
+      arr[j + 1] = arr[j];
       j--;
     }
-    // After the while loop the element is in place (adjacent swaps already handled the placement)
+    arr[j + 1] = key;
+    steps.push({
+      array: [...arr],
+      text: `Insert ${key} at position ${j + 1}. Array becomes [${arr.join(", ")}].`,
+    });
   }
-  return { steps, comparisons, swaps };
+  return { steps };
 };
 
-// ----- Merge Sort (uses writes rather than swaps) -----
 const mergeSortSteps = (src) => {
   const arr = [...src];
   const steps = [];
-  let comparisons = 0;
-  let swaps = 0; // Merge sort does not swap in-place; we leave this 0.
 
   const merge = (l, m, r) => {
     const left = arr.slice(l, m + 1);
     const right = arr.slice(m + 1, r + 1);
-    let i = 0,
-      j = 0,
-      k = l;
 
+    steps.push({
+      array: [...arr],
+      text: `Merging subarrays [${left.join(", ")}] and [${right.join(", ")}].`,
+    });
+
+    let i = 0, j = 0, k = l;
     while (i < left.length && j < right.length) {
-      // compare the absolute positions
-      comparisons++;
-      steps.push({ array: [...arr], compare: [l + i, m + 1 + j] });
-      if (left[i] <= right[j]) {
-        arr[k] = left[i];
-        steps.push({ array: [...arr], writeIndex: k });
-        i++;
-      } else {
-        arr[k] = right[j];
-        steps.push({ array: [...arr], writeIndex: k });
-        j++;
-      }
-      k++;
+      steps.push({
+        array: [...arr],
+        compare: [l + i, m + 1 + j],
+        text: `Compare ${left[i]} (left) and ${right[j]} (right). ${left[i] <= right[j]
+            ? `${left[i]} is smaller, place it into array at index ${k}.`
+            : `${right[j]} is smaller, place it into array at index ${k}.`
+          }`,
+      });
+      if (left[i] <= right[j]) arr[k++] = left[i++];
+      else arr[k++] = right[j++];
     }
     while (i < left.length) {
       arr[k] = left[i];
-      steps.push({ array: [...arr], writeIndex: k });
-      i++;
-      k++;
+      steps.push({
+        array: [...arr],
+        text: `Place remaining ${left[i]} from left subarray at index ${k}.`,
+      });
+      i++; k++;
     }
     while (j < right.length) {
       arr[k] = right[j];
-      steps.push({ array: [...arr], writeIndex: k });
-      j++;
-      k++;
+      steps.push({
+        array: [...arr],
+        text: `Place remaining ${right[j]} from right subarray at index ${k}.`,
+      });
+      j++; k++;
     }
   };
 
@@ -146,36 +171,46 @@ const mergeSortSteps = (src) => {
   };
 
   sort(0, arr.length - 1);
-  return { steps, comparisons, swaps };
+  return { steps };
 };
 
-// ----- Quick Sort (Lomuto) -----
+
 const quickSortSteps = (src) => {
   const arr = [...src];
   const steps = [];
-  let comparisons = 0;
-  let swaps = 0;
 
   const partition = (lo, hi) => {
     const pivot = arr[hi];
+    steps.push({
+      array: [...arr],
+      pivot: hi,
+      text: `Choose pivot = ${pivot} at index ${hi}.`,
+    });
+
     let i = lo - 1;
     for (let j = lo; j < hi; j++) {
-      comparisons++;
-      steps.push({ array: [...arr], compare: [j, hi], pivot: hi });
+      steps.push({
+        array: [...arr],
+        compare: [j, hi],
+        text: `Compare ${arr[j]} with pivot ${pivot}. ${arr[j] <= pivot ? `${arr[j]} is less than or equal to pivot, so keep it on the left.` : `${arr[j]} is greater than pivot, so it stays on the right.`
+          }`,
+      });
       if (arr[j] <= pivot) {
         i++;
-        if (i !== j) {
-          [arr[i], arr[j]] = [arr[j], arr[i]];
-          swaps++;
-          steps.push({ array: [...arr], swap: [i, j], pivot: hi });
-        }
+        [arr[i], arr[j]] = [arr[j], arr[i]];
+        steps.push({
+          array: [...arr],
+          swap: [i, j],
+          text: `Swap ${arr[i]} and ${arr[j]} to ensure left side has smaller elements. Array becomes [${arr.join(", ")}].`,
+        });
       }
     }
-    if (i + 1 !== hi) {
-      [arr[i + 1], arr[hi]] = [arr[hi], arr[i + 1]];
-      swaps++;
-      steps.push({ array: [...arr], swap: [i + 1, hi], pivot: i + 1 });
-    }
+    [arr[i + 1], arr[hi]] = [arr[hi], arr[i + 1]];
+    steps.push({
+      array: [...arr],
+      swap: [i + 1, hi],
+      text: `Place pivot ${pivot} at correct position index ${i + 1}. Array becomes [${arr.join(", ")}].`,
+    });
     return i + 1;
   };
 
@@ -188,15 +223,13 @@ const quickSortSteps = (src) => {
   };
 
   sort(0, arr.length - 1);
-  return { steps, comparisons, swaps };
+  return { steps };
 };
 
-// ----- Heap Sort -----
+
 const heapSortSteps = (src) => {
   const arr = [...src];
   const steps = [];
-  let comparisons = 0;
-  let swaps = 0;
 
   const heapify = (n, i) => {
     let largest = i;
@@ -204,37 +237,55 @@ const heapSortSteps = (src) => {
     const r = 2 * i + 2;
 
     if (l < n) {
-      comparisons++;
-      steps.push({ array: [...arr], compare: [l, largest] });
+      steps.push({
+        array: [...arr],
+        compare: [l, largest],
+        text: `Compare ${arr[l]} with parent ${arr[largest]}. ${arr[l] > arr[largest] ? `${arr[l]} is larger, update largest.` : `Parent ${arr[largest]} remains larger.`
+          }`,
+      });
       if (arr[l] > arr[largest]) largest = l;
     }
+
     if (r < n) {
-      comparisons++;
-      steps.push({ array: [...arr], compare: [r, largest] });
+      steps.push({
+        array: [...arr],
+        compare: [r, largest],
+        text: `Compare ${arr[r]} with parent ${arr[largest]}. ${arr[r] > arr[largest] ? `${arr[r]} is larger, update largest.` : `Parent ${arr[largest]} remains larger.`
+          }`,
+      });
       if (arr[r] > arr[largest]) largest = r;
     }
 
     if (largest !== i) {
       [arr[i], arr[largest]] = [arr[largest], arr[i]];
-      swaps++;
-      steps.push({ array: [...arr], swap: [i, largest] });
+      steps.push({
+        array: [...arr],
+        swap: [i, largest],
+        text: `Swap ${arr[i]} and ${arr[largest]} to maintain max-heap property. Array becomes [${arr.join(", ")}].`,
+      });
       heapify(n, largest);
     }
   };
 
   const n = arr.length;
+  steps.push({ array: [...arr], text: `Build a max heap from the array.` });
   for (let i = Math.floor(n / 2) - 1; i >= 0; i--) heapify(n, i);
+
   for (let i = n - 1; i > 0; i--) {
     [arr[0], arr[i]] = [arr[i], arr[0]];
-    swaps++;
-    steps.push({ array: [...arr], swap: [0, i] });
+    steps.push({
+      array: [...arr],
+      swap: [0, i],
+      text: `Extract max element ${arr[i]} and place it at index ${i}. Array becomes [${arr.join(", ")}].`,
+    });
     heapify(i, 0);
   }
 
-  return { steps, comparisons, swaps };
+  return { steps };
 };
 
-// ----------------------------------------------------- //
+
+// --------------------------------------------------------------------------- //
 
 const DSASorting = () => {
   const [algorithm, setAlgorithm] = useState("Bubble Sort");
@@ -242,17 +293,25 @@ const DSASorting = () => {
   const [comparisons, setComparisons] = useState(0);
   const [swaps, setSwaps] = useState(0);
   const [isSorting, setIsSorting] = useState(false);
-  const [speed] = useState(300); // ms per step
+  const [isPaused, setIsPaused] = useState(false); // NEW state for Pause/Resume
+  // const [speed] = useState(2000); // 2 seconds per step
   const [input, setInput] = useState(array.join(", "));
   const stopRef = useRef(false);
+  const pauseRef = useRef(false); // NEW REF
+  const [speed, setSpeed] = useState(2000); // default 2s
 
-  // Highlight state for animation
-  const [comparePair, setComparePair] = useState(null); // [i,j]
-  const [swapPair, setSwapPair] = useState(null); // [i,j]
-  const [writeIndex, setWriteIndex] = useState(null); // number
-  const [pivotIndex, setPivotIndex] = useState(null); // number
 
-  // Generate random array + show in input box
+  // Visual highlight state
+  const [comparePair, setComparePair] = useState(null);
+  const [swapPair, setSwapPair] = useState(null);
+  const [writeIndex, setWriteIndex] = useState(null);
+  const [pivotIndex, setPivotIndex] = useState(null);
+
+  // Description states
+  const [descriptions, setDescriptions] = useState([]);
+  const [currentStepIndex, setCurrentStepIndex] = useState(-1);
+
+  // Generate random array
   const generateRandomArray = () => {
     const arr = Array.from({ length: 8 }, () => Math.floor(Math.random() * 99));
     setArray(arr);
@@ -260,21 +319,23 @@ const DSASorting = () => {
     resetStats(false);
   };
 
-  // Reset (optionally clear highlights too)
+  // Reset stats
   const resetStats = (clearArray = false) => {
     if (clearArray) setArray([]);
     setComparisons(0);
     setSwaps(0);
     setIsSorting(false);
-    stopRef.current = true; // tell any running loop to stop
-    // clear highlights
+    setIsPaused(false);
+    stopRef.current = true;
     setComparePair(null);
     setSwapPair(null);
     setWriteIndex(null);
     setPivotIndex(null);
+    setDescriptions([]);
+    setCurrentStepIndex(-1);
   };
 
-  // Handle array input
+  // Parse input string
   const handleSetArray = () => {
     const arr = input
       .split(",")
@@ -288,47 +349,56 @@ const DSASorting = () => {
 
   const pickSorter = () => {
     switch (algorithm) {
-      case "Bubble Sort":
-        return bubbleSortSteps;
-      case "Selection Sort":
-        return selectionSortSteps;
-      case "Insertion Sort":
-        return insertionSortSteps;
-      case "Merge Sort":
-        return mergeSortSteps;
-      case "Quick Sort":
-        return quickSortSteps;
-      case "Heap Sort":
-        return heapSortSteps;
-      default:
-        return bubbleSortSteps;
+      case "Bubble Sort": return bubbleSortSteps;
+      case "Selection Sort": return selectionSortSteps;
+      case "Insertion Sort": return insertionSortSteps;
+      case "Merge Sort": return mergeSortSteps;
+      case "Quick Sort": return quickSortSteps;
+      case "Heap Sort": return heapSortSteps;
+      default: return bubbleSortSteps;
     }
   };
 
-  // Playback steps with highlighting and live counters
+  // Sorting loop
+  // Sorting loop
   const startSorting = async () => {
     if (isSorting) return;
     setComparisons(0);
     setSwaps(0);
     setIsSorting(true);
+    setIsPaused(false);
     stopRef.current = false;
+    pauseRef.current = false;
 
     const { steps } = pickSorter()(array);
+    if (!steps || steps.length === 0) {
+      setIsSorting(false);
+      return;
+    }
+
+    setDescriptions(steps.map((s) => s.text || ""));
+    setCurrentStepIndex(-1);
 
     let comp = 0;
     let swp = 0;
 
-    for (let s of steps) {
+    for (let idx = 0; idx < steps.length; idx++) {
       if (stopRef.current) break;
 
-      setArray(s.array);
+      // ✅ Correct pause handling
+      while (pauseRef.current && !stopRef.current) {
+        await sleep(200);
+      }
+      if (stopRef.current) break;
 
+      const s = steps[idx];
+      setArray(s.array);
       setComparePair(s.compare || null);
       setSwapPair(s.swap || null);
-      setWriteIndex(
-        typeof s.writeIndex === "number" ? s.writeIndex : null
-      );
+      setWriteIndex(typeof s.writeIndex === "number" ? s.writeIndex : null);
       setPivotIndex(typeof s.pivot === "number" ? s.pivot : null);
+
+      setCurrentStepIndex(idx);
 
       if (s.compare) {
         comp++;
@@ -342,170 +412,196 @@ const DSASorting = () => {
       await sleep(speed);
     }
 
-    // clear highlights at the end
     setComparePair(null);
     setSwapPair(null);
     setWriteIndex(null);
     setPivotIndex(null);
     setIsSorting(false);
+    setIsPaused(false);
+    pauseRef.current = false;
   };
 
-  const stopSorting = () => {
-    stopRef.current = true;
-    setIsSorting(false);
+
+  // Pause/Resume
+  const togglePauseResume = () => {
+    pauseRef.current = !pauseRef.current;
+    setIsPaused(pauseRef.current);
   };
 
   const barColor = (idx) => {
-    if (swapPair && (idx === swapPair[0] || idx === swapPair[1])) return "#ef4444"; // red
-    if (comparePair && (idx === comparePair[0] || idx === comparePair[1])) return "#f59e0b"; // amber
-    if (writeIndex === idx) return "#22c55e"; // green
-    if (pivotIndex === idx) return "#a78bfa"; // purple
-    return "#9ca3af"; // default gray
-    // (ordering matters: swap > compare > write > pivot > default)
+    if (swapPair && (idx === swapPair[0] || idx === swapPair[1])) return "#ef4444";
+    if (comparePair && (idx === comparePair[0] || idx === comparePair[1])) return "#f59e0b";
+    if (writeIndex === idx) return "#22c55e";
+    if (pivotIndex === idx) return "#a78bfa";
+    return "#9ca3af";
   };
 
   return (
     <>
-      <Box display={"flex"} justifyContent={"center"} width={"100%"} gap={2}>
-        <Box width={"80%"} gap={2} display={"flex"} flexDirection={"column"}>
-          {/* Controls */}
-          <Box
-            display={"flex"}
-            flexDirection={"column"}
-            bgcolor={"#ffffff"}
-            height={"170px"}
-            borderRadius={2}
-            p={3}
-          >
-            <Box display={"flex"} justifyContent={"left"} gap={27} mb={1.5}>
-              <Typography>Algorithm</Typography>
-              <Typography>Array Input</Typography>
-            </Box>
-
-            <Box display={"flex"} gap={2}>
-              <Select
-                value={algorithm}
-                onChange={(e) => setAlgorithm(e.target.value)}
-                variant="standard"
-                disableUnderline
-                sx={{
-                  border: "1px solid gray",
-                  borderRadius: 2,
-                  px: 1,
-                  py: 0.5,
-                  width: "30%",
-                  "&.Mui-focused": { border: "2px solid black" },
-                  backgroundColor: "white",
-                }}
-              >
-                <MenuItem value="Bubble Sort">Bubble Sort</MenuItem>
-                <MenuItem value="Selection Sort">Selection Sort</MenuItem>
-                <MenuItem value="Insertion Sort">Insertion Sort</MenuItem>
-                <MenuItem value="Merge Sort">Merge Sort</MenuItem>
-                <MenuItem value="Quick Sort">Quick Sort</MenuItem>
-                <MenuItem value="Heap Sort">Heap Sort</MenuItem>
-              </Select>
-
-              <Input
-                placeholder="e.g. 34,67,25,75,23"
-                disableUnderline
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                sx={{
-                  border: "2px solid gray",
-                  borderRadius: 2,
-                  p: 0.5,
-                  width: "30%",
-                  "&.Mui-focused": { border: "2px solid black" },
-                  backgroundColor: "white",
-                }}
-              />
-
-              <Button
-                onClick={handleSetArray}
-                sx={{
-                  textTransform: "none",
-                  p: 1,
-                  bgcolor: "#3b82f6",
-                  color: "#ffffff",
-                  width: "20%",
-                  borderRadius: 2.5,
-                  "&:hover": { bgcolor: "#2265d4" },
-                }}
-              >
-                Set Array
-              </Button>
-              <Button
-                onClick={generateRandomArray}
-                sx={{
-                  textTransform: "none",
-                  p: 1,
-                  bgcolor: "#6b7280",
-                  color: "#ffffff",
-                  width: "15%",
-                  borderRadius: 2.5,
-                  "&:hover": { bgcolor: "#5a606e" },
-                }}
-              >
-                Random
-              </Button>
-            </Box>
-
-            <Box display={"flex"} gap={2} mt={3}>
-              <Button
-                disabled={isSorting}
-                onClick={startSorting}
-                sx={{
-                  textTransform: "none",
-                  p: 1,
-                  width: "12%",
-                  bgcolor: "#22c55e",
-                  color: "#ffffff",
-                  borderRadius: 2.5,
-                  "&:hover": { bgcolor: "#0da143" },
-                }}
-              >
-                <FaPlay style={{ marginRight: 5 }} />
-                Start
-              </Button>
-              <Button
-                onClick={stopSorting}
-                sx={{
-                  textTransform: "none",
-                  p: 1,
-                  width: "12%",
-                  bgcolor: "#ef4444",
-                  color: "#ffffff",
-                  borderRadius: 2.5,
-                  "&:hover": { bgcolor: "#c92e2e" },
-                }}
-              >
-                <FaStop style={{ marginRight: 5 }} />
-                Stop
-              </Button>
-              <Button
-                onClick={() => resetStats(false)}
-                sx={{
-                  textTransform: "none",
-                  p: 1,
-                  width: "12%",
-                  bgcolor: "#6b7280",
-                  color: "#ffffff",
-                  borderRadius: 2.5,
-                  "&:hover": { bgcolor: "#5a606e" },
-                }}
-              >
-                <RiLoopLeftFill style={{ marginRight: 5 }} />
-                Reset
-              </Button>
-            </Box>
+      <Box width={"100%"} gap={2} display={"flex"} flexDirection={"column"}>
+        {/* Controls */}
+        <Box
+          display={"flex"}
+          flexDirection={"column"}
+          bgcolor={"#ffffff"}
+          height={"130px"}
+          borderRadius={2}
+          p={3}
+        >
+          <Box display={"flex"} justifyContent={"left"} gap={37} mb={1}>
+            <Typography>Algorithm</Typography>
+            <Typography>Array Input</Typography>
           </Box>
 
+          <Box display={"flex"} gap={2}>
+            <Select
+              value={algorithm}
+              onChange={(e) => setAlgorithm(e.target.value)}
+              variant="standard"
+              disableUnderline
+              sx={{
+                border: "1px solid gray",
+                borderRadius: 2,
+                px: 1,
+                py: 0.5,
+                width: "30%",
+                "&.Mui-focused": { border: "2px solid black" },
+                backgroundColor: "white",
+              }}
+            >
+              <MenuItem value="Bubble Sort">Bubble Sort</MenuItem>
+              <MenuItem value="Selection Sort">Selection Sort</MenuItem>
+              <MenuItem value="Insertion Sort">Insertion Sort</MenuItem>
+              <MenuItem value="Merge Sort">Merge Sort</MenuItem>
+              <MenuItem value="Quick Sort">Quick Sort</MenuItem>
+              <MenuItem value="Heap Sort">Heap Sort</MenuItem>
+            </Select>
+
+            <Input
+              placeholder="e.g. 34,67,25,75,23"
+              disableUnderline
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              sx={{
+                border: "2px solid gray",
+                borderRadius: 2,
+                p: 0.5,
+                width: "30%",
+                "&.Mui-focused": { border: "2px solid black" },
+                backgroundColor: "white",
+              }}
+            />
+
+            <Button
+              onClick={handleSetArray}
+              sx={{
+                textTransform: "none",
+                p: 1,
+                bgcolor: "#3b82f6",
+                color: "#ffffff",
+                width: "20%",
+                borderRadius: 2.5,
+                "&:hover": { bgcolor: "#2265d4" },
+              }}
+            >
+              Set Array
+            </Button>
+            <Button
+              onClick={generateRandomArray}
+              sx={{
+                textTransform: "none",
+                p: 1,
+                bgcolor: "#6b7280",
+                color: "#ffffff",
+                width: "15%",
+                borderRadius: 2.5,
+                "&:hover": { bgcolor: "#5a606e" },
+              }}
+            >
+              Random
+            </Button>
+          </Box>
+
+          <Box display={"flex"} gap={2} mt={1.5}>
+            <Button
+              disabled={isSorting}
+              onClick={startSorting}
+              sx={{
+                textTransform: "none",
+                p: 1,
+                width: "12%",
+                bgcolor: "#22c55e",
+                color: "#ffffff",
+                borderRadius: 2.5,
+                "&:hover": { bgcolor: "#0da143" },
+              }}
+            >
+              <FaPlay style={{ marginRight: 5 }} />
+              Start
+            </Button>
+            <Button
+              disabled={!isSorting}
+              onClick={togglePauseResume}
+              sx={{
+                textTransform: "none",
+                p: 1,
+                width: "12%",
+                bgcolor: "#f97316",
+                color: "#ffffff",
+                borderRadius: 2.5,
+                "&:hover": { bgcolor: "#ea580c" },
+              }}
+            >
+              {isPaused ? (
+                <>
+                  <FaResume style={{ marginRight: 5 }} />
+                  Resume
+                </>
+              ) : (
+                <>
+                  <FaPause style={{ marginRight: 5 }} />
+                  Pause
+                </>
+              )}
+            </Button>
+            <Button
+              onClick={() => resetStats(false)}
+              sx={{
+                textTransform: "none",
+                p: 1,
+                width: "12%",
+                bgcolor: "#6b7280",
+                color: "#ffffff",
+                borderRadius: 2.5,
+                "&:hover": { bgcolor: "#5a606e" },
+              }}
+            >
+              <RiLoopLeftFill style={{ marginRight: 5 }} />
+              Reset
+            </Button>
+            <Box display="flex" alignItems="center" gap={2} ml={2} width="30%">
+              <Typography variant="body2">Speed</Typography>
+              <Slider
+                value={speed}
+                onChange={(e, val) => setSpeed(val)}
+                step={500}
+                min={500}
+                max={3000}
+                valueLabelDisplay="auto"
+                valueLabelFormat={(val) => `${(val / 1000).toFixed(1)}s`}
+              />
+            </Box>
+
+          </Box>
+        </Box>
+
+        <Box display={"flex"} justifyContent={"center"} width={"100%"} gap={2}>
           {/* Visualization */}
-          <Box bgcolor={"#ffffff"} height={"550px"} borderRadius={2} p={3}>
+          <Box bgcolor={"#ffffff"} height={"450px"} borderRadius={2} p={3} width={"75%"}>
             <Typography variant="h6" fontWeight={600}>
               Sorting Visualization
             </Typography>
+
             <Box
               height={"70%"}
               width={"96%"}
@@ -526,16 +622,22 @@ const DSASorting = () => {
                   width="30px"
                   bgcolor={barColor(idx)}
                   borderRadius={1}
+                  display="flex"
+                  alignItems="flex-end"
+                  justifyContent="center"
                   sx={{
-                    transition: "all 0.3s ease",
+                    transition: "all 1.5s ease",
                   }}
-                  title={String(val)}
-                />
+                >
+                  <Typography variant="caption" sx={{ color: "white", fontWeight: 600 }}>
+                    {val}
+                  </Typography>
+                </Box>
               ))}
             </Box>
 
             {/* Stats */}
-            <Box display={"flex"} justifyContent={"center"} mt={4} gap={3}>
+            <Box display={"flex"} justifyContent={"center"} mt={1} gap={3}>
               <Box display={"flex"} flexDirection={"column"} alignItems={"center"}>
                 <Typography variant="body1" color="text.secondary">
                   Comparisons
@@ -552,69 +654,65 @@ const DSASorting = () => {
                   {swaps}
                 </Typography>
               </Box>
-              {/* <Box display={"flex"} flexDirection={"column"} alignItems={"center"}>
-                <Typography variant="body1" color="text.secondary">
-                  Speed
-                </Typography>
-                <Typography variant="h6" color="#2563eb" fontWeight={600}>
-                  Normal
-                </Typography>
-              </Box> */}
-            </Box>
-          </Box>
-          <Box bgcolor={'#f0f8ff'} width={'100%'} mb={2}>
-            <Accordion sx={{ borderRadius: 2, boxShadow: 1 }}>
-              <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ fontWeight: 'bold' }}>
-                <Typography fontWeight={'bold'}>Theory & Examples</Typography>
-              </AccordionSummary>
-
-              <AccordionDetails>
-                <Typography variant="h6" mb={1}>Binary Search Tree</Typography>
-                <Typography mb={2}>
-                  BST repeatedly steps through the list, compares adjacent elements and swaps them if they're in the wrong order.
-                </Typography>
-
-                <SyntaxHighlighter language="cpp" style={darcula} customStyle={{ borderRadius: 10 }}>
-
-                </SyntaxHighlighter>
-              </AccordionDetails>
-            </Accordion>
-          </Box>
-
-          <PracticeProblem />
-        </Box>
-        <Box
-          height={'600px'}
-          width={'20%'}
-          borderRadius={2}
-          bgcolor={'#ffffff'}
-          p={1.5}
-        >
-          <Typography variant="h6" fontWeight={600}>Complexity Analysis</Typography>
-          <Box bgcolor={'#ebf4ff'} p={1.5} m={1} borderRadius={2}>
-            <Typography color="#438af7" fontWeight={600}>Time Complexity</Typography>
-            <Box mt={1}>
-              <Typography variant="body1" color="text.secondary" mb={0.1}>Best : O(n)</Typography>
-              <Typography variant="body1" color="text.secondary" mb={0.1}>Average : O(n²)</Typography>
-              <Typography variant="body1" color="text.secondary" mb={0.1}>Worst : O(n²)</Typography>
             </Box>
           </Box>
 
-          <Box bgcolor={'#f0fdf4'} p={1.5} m={1} borderRadius={2}>
-            <Typography color="#1c8972" fontWeight={600} mb={1.5}>Space Complexity</Typography>
-            <Typography variant="body1" color="text.secondary">Space : O(1)</Typography>
+          {/* RIGHT SIDE (25%) - Step-by-step Description */}
+          <Box height={"475px"} width={"25%"} borderRadius={2} bgcolor={"#ffffff"} p={1.5} display="flex" flexDirection="column">
+            <Typography variant="h6" fontWeight={600}>
+              Step-by-step Description
+            </Typography>
+
+            <Box mt={2} sx={{ overflowY: "auto", flex: 1 }}>
+              {descriptions.length === 0 ? (
+                <Typography variant="body2" color="text.secondary">
+                  Click <strong>Start</strong> to see step-by-step narration here.
+                </Typography>
+              ) : (
+                descriptions.map((line, i) => (
+                  <Typography
+                    key={i}
+                    variant="body2"
+                    sx={{
+                      mb: 0.5,
+                      background: i === currentStepIndex ? "rgba(67,138,247,0.10)" : "none",
+                      borderLeft: i === currentStepIndex ? "3px solid #438af7" : "none",
+                      pl: i === currentStepIndex ? 1 : 0,
+                    }}
+                  >
+                    {i + 1}. {line}
+                  </Typography>
+                ))
+              )}
+            </Box>
           </Box>
-
-          <Box bgcolor={'#fefce8'} p={1.5} m={1} borderRadius={2}>
-            <Typography color="#a46f26" fontWeight={600} mb={1.5}>Properties</Typography>
-            <Typography variant="body1" color="text.secondary">• Stable sorting</Typography>
-            <Typography variant="body1" color="text.secondary">• In-place algorithm</Typography>
-            <Typography variant="body1" color="text.secondary">• Simple implementation</Typography>
-            <Typography variant="body1" color="text.secondary">• Poor performance</Typography>
-
-          </Box>
-
         </Box>
+
+        {/* Theory accordion */}
+        <Box bgcolor={"#f0f8ff"} width={"100%"} mb={2}>
+          <Accordion sx={{ borderRadius: 2, boxShadow: 1 }}>
+            <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ fontWeight: "bold" }}>
+              <Typography fontWeight={"bold"}>Theory & Examples</Typography>
+            </AccordionSummary>
+
+            <AccordionDetails>
+              <Typography variant="h6" mb={1}>
+                Sorting Algorithms
+              </Typography>
+              <Typography mb={2}>
+                Sorting algorithms are used to arrange elements in a list or array in a particular order.
+              </Typography>
+
+              <SyntaxHighlighter language="cpp" style={darcula} customStyle={{ borderRadius: 10 }}>
+                {`// Example (pseudo):
+// Bubble sort: repeatedly step through the list,
+// compare adjacent elements and swap if they are in the wrong order.`}
+              </SyntaxHighlighter>
+            </AccordionDetails>
+          </Accordion>
+        </Box>
+
+        <PracticeProblem />
       </Box>
     </>
   );
